@@ -14,7 +14,6 @@ package org.openhab.binding.bluetooth.radoneye.internal;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
@@ -30,6 +29,8 @@ import org.slf4j.LoggerFactory;
 public class RadoneyeDataParser {
     public static final String RADON = "radon";
 
+    public static final String DECAY = "decay";
+
     private static final int EXPECTED_DATA_LEN_V1 = 20;
     private static final int EXPECTED_DATA_LEN_V2 = 12;
     private static final int EXPECTED_VER_PLUS = 1;
@@ -39,11 +40,9 @@ public class RadoneyeDataParser {
     private RadoneyeDataParser() {
     }
 
-    public static Map<String, Number> parseRd200Data(int fwVersion, int[] data) throws RadoneyeParserException {
+    public static Map<String, Number> parseRd200Data(int fwVersion, byte[] data) throws RadoneyeParserException {
         LOGGER.debug("Parsed data length: {}", data.length);
         LOGGER.debug("Parsed data: {}", data);
-
-        final Map<String, Number> result = new HashMap<>();
 
         switch (fwVersion) {
             case 1:
@@ -51,28 +50,25 @@ public class RadoneyeDataParser {
                     throw new RadoneyeParserException(String.format("Illegal data structure length '%d'", data.length));
                 }
 
-                int[] radonArray = subArray(data, 2, 6);
-                result.put(RADON, new BigDecimal(readFloat(radonArray) * 37));
-                break;
+                byte[] radonArray = subArray(data, 2, 6);
+                return Map.of(RADON, new BigDecimal(readFloat(radonArray) * 37));
             case 2:
                 if (data.length != EXPECTED_DATA_LEN_V2) {
                     throw new RadoneyeParserException(String.format("Illegal data structure length '%d'", data.length));
                 }
 
-                result.put(RADON, intFromBytes(data[2], data[3]));
-                break;
+                return Map.of(RADON, intFromBytes(data[2], data[3]), DECAY, intFromBytes(data[10], data[11]));
             default:
                 throw new UnsupportedOperationException("fwVersion: " + fwVersion + " is not implemented");
         }
-        return result;
     }
 
-    private static int intFromBytes(int lowByte, int highByte) {
+    private static int intFromBytes(byte lowByte, byte highByte) {
         return (highByte & 0xFF) << 8 | (lowByte & 0xFF);
     }
 
     // Little endian
-    private static int fromByteArrayLE(int[] bytes) {
+    private static int fromByteArrayLE(byte[] bytes) {
         int result = 0;
         for (int i = 0; i < bytes.length; i++) {
             result |= (bytes[i] & 0xFF) << (8 * i);
@@ -80,12 +76,12 @@ public class RadoneyeDataParser {
         return result;
     }
 
-    private static float readFloat(int[] bytes) {
+    private static float readFloat(byte[] bytes) {
         int i = fromByteArrayLE(bytes);
         return Float.intBitsToFloat(i);
     }
 
-    private static int[] subArray(int[] array, int beg, int end) {
+    private static byte[] subArray(byte[] array, int beg, int end) {
         return Arrays.copyOfRange(array, beg, end + 1);
     }
 }
