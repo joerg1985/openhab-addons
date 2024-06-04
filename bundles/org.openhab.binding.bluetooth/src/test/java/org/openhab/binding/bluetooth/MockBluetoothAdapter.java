@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
+import org.openhab.core.thing.ThingStatus;
 import org.openhab.core.thing.ThingUID;
 
 /**
@@ -35,6 +36,11 @@ public class MockBluetoothAdapter implements BluetoothAdapter {
     @Override
     public ThingUID getUID() {
         return uid;
+    }
+
+    @Override
+    public ThingStatus getStatus() {
+        return ThingStatus.ONLINE;
     }
 
     @Override

@@ -92,7 +92,13 @@ public class ConnectedBluetoothHandler extends BeaconBluetoothHandler {
         if (alwaysConnected || !device.isServicesDiscovered()) {
             reconnectJob = connectionTaskExecutor.scheduleWithFixedDelay(() -> {
                 try {
-                    if (device.getConnectionState() != ConnectionState.CONNECTED) {
+                    BluetoothAdapter adapter = device.getAdapter();
+                    ThingStatus status = adapter.getStatus();
+                    if (status != ThingStatus.ONLINE) {
+                        logger.info("Adapter {} is not online: {}", adapter, status);
+                        updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE);
+                    } else if (device.getConnectionState() != ConnectionState.CONNECTED) {
+                        updateStatus(ThingStatus.OFFLINE); // drop the BRIDGE_OFFLINE flag
                         if (device.connect()) {
                             if (!alwaysConnected) {
                                 cancel(reconnectJob, false);

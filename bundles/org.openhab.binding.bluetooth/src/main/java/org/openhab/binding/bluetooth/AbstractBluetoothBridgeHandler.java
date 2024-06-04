@@ -27,6 +27,7 @@ import org.openhab.binding.bluetooth.BluetoothDevice.ConnectionState;
 import org.openhab.core.thing.Bridge;
 import org.openhab.core.thing.ChannelUID;
 import org.openhab.core.thing.Thing;
+import org.openhab.core.thing.ThingStatus;
 import org.openhab.core.thing.ThingUID;
 import org.openhab.core.thing.binding.BaseBridgeHandler;
 import org.openhab.core.types.Command;
@@ -73,6 +74,11 @@ public abstract class AbstractBluetoothBridgeHandler<BD extends BaseBluetoothDev
     @Override
     public ThingUID getUID() {
         return getThing().getUID();
+    }
+
+    @Override
+    public ThingStatus getStatus() {
+        return getThing().getStatus();
     }
 
     @Override

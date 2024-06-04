@@ -15,6 +15,7 @@ package org.openhab.binding.bluetooth;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.core.common.registry.Identifiable;
+import org.openhab.core.thing.ThingStatus;
 import org.openhab.core.thing.ThingUID;
 
 /**
@@ -32,6 +33,11 @@ import org.openhab.core.thing.ThingUID;
  */
 @NonNullByDefault
 public interface BluetoothAdapter extends Identifiable<ThingUID> {
+
+    /**
+     * Get the status of the adapter
+     */
+    ThingStatus getStatus();
 
     /**
      * Adds a {@link BluetoothDiscoveryListener} to the adapter
