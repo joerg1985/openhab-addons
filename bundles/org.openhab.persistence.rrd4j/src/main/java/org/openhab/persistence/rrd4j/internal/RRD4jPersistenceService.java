@@ -105,12 +105,12 @@ import org.slf4j.LoggerFactory;
                 + "=org.openhab.rrd4j")
 public class RRD4jPersistenceService implements QueryablePersistenceService {
 
-    private record Key(long timestamp, String name) implements Comparable<Key> {
+    private record Key(String name, long timestamp) implements Comparable<Key> {
         @Override
         public int compareTo(Key other) {
-            int c = Long.compare(timestamp, other.timestamp);
+            int c = Objects.compare(name, other.name, String::compareTo);
 
-            return (c == 0) ? Objects.compare(name, other.name, String::compareTo) : c;
+            return (c == 0) ? Long.compare(timestamp, other.timestamp) : c;
         }
     }
 
@@ -153,7 +153,7 @@ public class RRD4jPersistenceService implements QueryablePersistenceService {
     @Activate
     public RRD4jPersistenceService(final @Reference ItemRegistry itemRegistry, Map<String, Object> config) {
         this.itemRegistry = itemRegistry;
-        storeJob = scheduler.scheduleWithFixedDelay(() -> doStore(false), 1, 1, TimeUnit.SECONDS);
+        storeJob = scheduler.scheduleWithFixedDelay(() -> doStore(false), 1, 20, TimeUnit.SECONDS);
         modified(config);
         active = true;
     }
@@ -330,7 +330,7 @@ public class RRD4jPersistenceService implements QueryablePersistenceService {
         }
 
         long now = System.currentTimeMillis() / 1000;
-        Double oldValue = storageMap.put(new Key(now, name), value);
+        Double oldValue = storageMap.put(new Key(name, now), value);
         if (oldValue != null && !oldValue.equals(value)) {
             logger.debug(
                     "Discarding value {} for item {} with timestamp {} because a new value ({}) arrived with the same timestamp.",
@@ -339,32 +339,67 @@ public class RRD4jPersistenceService implements QueryablePersistenceService {
     }
 
     private void doStore(boolean force) {
+        @Nullable
+        String openName = null;
+        @Nullable
+        RrdDb openDb = null;
+        @Nullable
+        ConsolFun function = null;
+
         long now = System.currentTimeMillis() / 1000;
-        while (!storageMap.isEmpty()) {
-            Key key = storageMap.firstKey();
-            if (now > key.timestamp || force) {
-                // no new elements can be added for this timestamp because we are already past that time or the service
-                // requires forced storing
-                Double value = storageMap.pollFirstEntry().getValue();
-                writePointToDatabase(key.name, value, key.timestamp);
-            } else {
-                return;
+
+        try {
+            for (Iterator<Map.Entry<Key, Double>> it = storageMap.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<Key, Double> entry = it.next();
+                Key key = entry.getKey();
+
+                if (now > key.timestamp || force) {
+                    // no new elements can be added for this timestamp because we are already past that time or the
+                    // service requires forced storing
+                    it.remove();
+
+                    if (!key.name.equals(openName)) {
+                        if (openDb != null) {
+                            try {
+                                openDb.close();
+                            } catch (IOException e) {
+                                logger.debug("Error closing rrd4j database: {}", e.getMessage());
+                            }
+                        }
+
+                        try {
+                            openDb = getDB(key.name, true);
+                        } catch (Exception e) {
+                            logger.warn("Failed to open rrd4j database '{}' to store data ({})", key.name,
+                                    e.toString());
+                            continue;
+                        }
+
+                        if (openDb == null)
+                            continue;
+                        function = getConsolidationFunction(openDb);
+                        openName = key.name;
+                    }
+
+                    if (openDb == null)
+                        continue;
+
+                    writePointToDatabase(openDb, function, key.name, entry.getValue(), key.timestamp);
+                }
+            }
+        } finally {
+            if (openDb != null) {
+                try {
+                    openDb.close();
+                } catch (IOException e) {
+                    logger.debug("Error closing rrd4j database: {}", e.getMessage());
+                }
             }
         }
     }
 
-    private synchronized void writePointToDatabase(String name, double value, long timestamp) {
-        RrdDb db = null;
-        try {
-            db = getDB(name, true);
-        } catch (Exception e) {
-            logger.warn("Failed to open rrd4j database '{}' to store data ({})", name, e.toString());
-        }
-        if (db == null) {
-            return;
-        }
-
-        ConsolFun function = getConsolidationFunction(db);
+    private synchronized void writePointToDatabase(RrdDb db, @Nullable ConsolFun function, String name, double value,
+            long timestamp) {
         if (function != ConsolFun.AVERAGE) {
             try {
                 // we store the last value again, so that the value change
@@ -398,12 +433,7 @@ public class RRD4jPersistenceService implements QueryablePersistenceService {
             sample.update();
             logger.debug("Stored '{}' as value '{}' with timestamp {} in rrd4j database", name, storeValue, timestamp);
         } catch (Exception e) {
-            logger.warn("Could not persist '{}' to rrd4j database: {}", name, e.getMessage());
-        }
-        try {
-            db.close();
-        } catch (IOException e) {
-            logger.debug("Error closing rrd4j database: {}", e.getMessage());
+            logger.warn("Could not persist '{}' to rrd4j database: {}", name, e.toString());
         }
     }
 
@@ -626,7 +656,7 @@ public class RRD4jPersistenceService implements QueryablePersistenceService {
         }
     }
 
-    public ConsolFun getConsolidationFunction(RrdDb db) {
+    public synchronized ConsolFun getConsolidationFunction(RrdDb db) {
         try {
             return db.getRrdDef().getArcDefs()[0].getConsolFun();
         } catch (IOException e) {
