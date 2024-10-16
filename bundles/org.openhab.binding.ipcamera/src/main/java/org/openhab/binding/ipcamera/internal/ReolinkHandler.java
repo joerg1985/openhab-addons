@@ -452,7 +452,7 @@ public class ReolinkHandler extends ChannelDuplexHandler {
                     ipCameraHandler.sendHttpPOST("/api.cgi?cmd=SetIrLights" + ipCameraHandler.reolinkAuth,
                             "[{\"cmd\": \"SetIrLights\",\"action\": 0,\"param\": {\"IrLights\": {\"channel\": "
                                     + ipCameraHandler.cameraConfig.getNvrChannel() + ",\"state\": \"Off\"}}}]");
-                } else if (OnOffType.ON.equals(command) || command instanceof PercentType percentCommand) {
+                } else if (OnOffType.ON.equals(command) || command instanceof PercentType) {
                     ipCameraHandler.sendHttpPOST("/api.cgi?cmd=SetIrLights" + ipCameraHandler.reolinkAuth,
                             "[{\"cmd\": \"SetIrLights\",\"action\": 0,\"param\": {\"IrLights\": {\"channel\": "
                                     + ipCameraHandler.cameraConfig.getNvrChannel() + ",\"state\": \"On\"}}}]");
@@ -508,6 +508,18 @@ public class ReolinkHandler extends ChannelDuplexHandler {
                                     + ipCameraHandler.cameraConfig.getNvrChannel() + ",\"mode\": 2,\"bright\": " + value
                                     + "}}}]");
                 }
+                break;
+            case CHANNEL_AUTO_TRACKING:
+                if (OnOffType.ON.equals(command)) {
+                    ipCameraHandler.sendHttpPOST("/api.cgi?cmd=SetAiCfg" + ipCameraHandler.reolinkAuth,
+                            "[{\"cmd\":\"SetAiCfg\",\"action\":0,\"param\":{\"bSmartTrack\":1,\"channel\": "
+                                    + ipCameraHandler.cameraConfig.getNvrChannel() + " }}]");
+                } else {
+                    ipCameraHandler.sendHttpPOST("/api.cgi?cmd=SetAiCfg" + ipCameraHandler.reolinkAuth,
+                            "[{\"cmd\":\"SetAiCfg\",\"action\":0,\"param\":{\"bSmartTrack\":0,\"channel\": "
+                                    + ipCameraHandler.cameraConfig.getNvrChannel() + " }}]");
+                }
+                break;
         }
     }
 
